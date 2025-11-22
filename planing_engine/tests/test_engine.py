@@ -7,8 +7,8 @@ import os
 # Добавляем родительскую папку в путь для импорта
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from planning_engine.models import Task, Priority, Status
-from planning_engine.engine import plan_day, get_plan_summary
+from planing_engine.models import Task, Priority, Status
+from planing_engine.engine import plan_day, get_plan_summary
 
 
 def create_task(
