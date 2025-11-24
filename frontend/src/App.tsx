@@ -1,6 +1,11 @@
+import { useState } from 'react'
 import flowlyLogo from './assets/flowly-logo.svg'
+import Tasks from './pages/Tasks'
 
 const App = () => {
+  type View = 'landing' | 'tasks'
+  const [view, setView] = useState<View>('landing')
+
   const features = [
     {
       title: 'AI-розклад без хаосу',
@@ -52,6 +57,16 @@ const App = () => {
     },
   ]
 
+  const goToTasks = (event?: React.MouseEvent) => {
+    event?.preventDefault()
+    setView('tasks')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  if (view === 'tasks') {
+    return <Tasks />
+  }
+
   return (
     <div className="page">
       <header className="topbar">
@@ -60,6 +75,9 @@ const App = () => {
           <span className="brand-pill">AI time OS</span>
         </div>
         <nav className="nav">
+          <a href="#tasks" onClick={goToTasks}>
+            Список задач
+          </a>
           <a href="#features">Можливості</a>
           <a href="#how">Як працює</a>
           <a href="#cta">Демо</a>
@@ -81,7 +99,7 @@ const App = () => {
               прозорий календар і AI, який стежить, щоб темп не падав.
             </p>
             <div className="cta-row">
-              <a className="primary-button" href="#cta">
+              <a className="primary-button" href="#tasks" onClick={goToTasks}>
                 Запросити демо
               </a>
               <a className="link-button" href="#features">
@@ -166,9 +184,14 @@ const App = () => {
                 Покажемо, як ми прибираємо хаос з календаря та підтягуємо командний ритм за тиждень.
               </p>
             </div>
-            <a className="primary-button" href="mailto:hello@flowly.ai">
-              hello@flowly.ai
-            </a>
+            <div className="cta-row">
+              <button className="primary-button" type="button" onClick={goToTasks}>
+                Список задач
+              </button>
+              <a className="link-button" href="mailto:hello@flowly.ai">
+                hello@flowly.ai
+              </a>
+            </div>
           </div>
         </section>
       </main>
