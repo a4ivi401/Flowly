@@ -85,23 +85,25 @@ async def test_db_connection(db: Session = Depends(get_db)):
         )
 
 
-# Ендпоінти для роботи з задачами
-@app.get("/tasks/", response_model=list[schemas.Task])
-def read_tasks(
-        skip: int = 0,
-        limit: int = 100,
-        status: str = None,
-        db: Session = Depends(get_db)
-):
-    """Отримати список задач з фільтрацією"""
-    tasks = crud.get_tasks(db, skip=skip, limit=limit, status=status)
-    return tasks
-
+# ОСНОВНІ ЕНДПОЇНТИ ДЛЯ РОБОТИ З ЗАДАЧАМИ
 
 @app.post("/tasks/", response_model=schemas.Task)
 def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db)):
     """Створити нову задачу"""
     return crud.create_task(db=db, task=task)
+
+
+@app.get("/tasks/", response_model=list[schemas.Task])
+def read_tasks(
+        skip: int = 0,
+        limit: int = 100,
+        status: str = None,
+        priority: int = None,
+        db: Session = Depends(get_db)
+):
+    """Отримати список задач з фільтрацією"""
+    tasks = crud.get_tasks(db, skip=skip, limit=limit, status=status, priority=priority)
+    return tasks
 
 
 @app.get("/tasks/{task_id}", response_model=schemas.Task)
@@ -128,10 +130,8 @@ def delete_task(task_id: int, db: Session = Depends(get_db)):
     task = crud.delete_task(db, task_id=task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Задачу не знайдено")
-    return {"message": "Задачу успішно видалено"}
+    return {"ok": True}
 
-
-# Додаткові спеціальні ендпоінти
 @app.get("/tasks/priority/{priority}", response_model=list[schemas.Task])
 def read_tasks_by_priority(priority: int, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     """Отримати задачі за пріоритетом"""
@@ -140,15 +140,12 @@ def read_tasks_by_priority(priority: int, skip: int = 0, limit: int = 100, db: S
     tasks = crud.get_tasks_by_priority(db, priority=priority, skip=skip, limit=limit)
     return tasks
 
-
 @app.get("/tasks/status/overdue", response_model=list[schemas.Task])
 def read_overdue_tasks(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     """Отримати прострочені задачі"""
     tasks = crud.get_overdue_tasks(db, skip=skip, limit=limit)
     return tasks
 
-
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(app, host="0.0.0.0", port=8000)

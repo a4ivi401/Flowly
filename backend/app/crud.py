@@ -1,49 +1,8 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import desc, and_
+from sqlalchemy.sql import func
+
 from app import models, schemas
-
-def get_task(db: Session, task_id: int):
-    """Отримати задачу за ID"""
-    return db.query(models.Task).filter(models.Task.id == task_id).first()
-
-def get_tasks(db: Session, skip: int = 0, limit: int = 100):
-    """Отримати список задач"""
-    return db.query(models.Task).offset(skip).limit(limit).all()
-
-def create_task(db: Session, task: schemas.TaskCreate):
-    """Створити нову задачу"""
-    db_task = models.Task(
-        title=task.title,
-        description=task.description,
-        is_completed=task.is_completed
-    )
-    db.add(db_task)
-    db.commit()
-    db.refresh(db_task)
-    return db_task
-
-def update_task(db: Session, task_id: int, task_update: schemas.TaskUpdate):
-    """Оновити задачу"""
-    db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
-    if db_task:
-        update_data = task_update.dict(exclude_unset=True)
-        for field, value in update_data.items():
-            setattr(db_task, field, value)
-        db.commit()
-        db.refresh(db_task)
-    return db_task
-
-def delete_task(db: Session, task_id: int):
-    """Видалити задачу"""
-    db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
-    if db_task:
-        db.delete(db_task)
-        db.commit()
-    return db_task
-
-
-from sqlalchemy.orm import Session
-from app import models, schemas
-from sqlalchemy import desc
 
 
 def get_task(db: Session, task_id: int):
@@ -51,12 +10,14 @@ def get_task(db: Session, task_id: int):
     return db.query(models.Task).filter(models.Task.id == task_id).first()
 
 
-def get_tasks(db: Session, skip: int = 0, limit: int = 100, status: str = None):
-    """Отримати список задач з фільтрацією по статусу"""
+def get_tasks(db: Session, skip: int = 0, limit: int = 100, status: str = None, priority: int = None):
+    """Отримати список задач з фільтрацією по статусу та пріоритету"""
     query = db.query(models.Task)
 
     if status:
         query = query.filter(models.Task.status == status)
+    if priority:
+        query = query.filter(models.Task.priority == priority)
 
     return query.order_by(desc(models.Task.created_at)).offset(skip).limit(limit).all()
 
@@ -108,7 +69,6 @@ def get_tasks_by_priority(db: Session, priority: int, skip: int = 0, limit: int 
 
 def get_overdue_tasks(db: Session, skip: int = 0, limit: int = 100):
     """Отримати прострочені задачі"""
-    from sqlalchemy import and_
     return db.query(models.Task) \
         .filter(and_(
         models.Task.deadline.isnot(None),
@@ -117,3 +77,48 @@ def get_overdue_tasks(db: Session, skip: int = 0, limit: int = 100):
     )) \
         .order_by(models.Task.deadline) \
         .offset(skip).limit(limit).all()
+
+
+def get_tasks_by_status(db: Session, status: str, skip: int = 0, limit: int = 100):
+    """Отримати задачі за статусом"""
+    return db.query(models.Task) \
+        .filter(models.Task.status == status) \
+        .order_by(desc(models.Task.created_at)) \
+        .offset(skip).limit(limit).all()
+
+
+def get_tasks_with_deadline(db: Session, skip: int = 0, limit: int = 100):
+    """Отримати задачі з встановленим дедлайном"""
+    return db.query(models.Task) \
+        .filter(models.Task.deadline.isnot(None)) \
+        .order_by(models.Task.deadline) \
+        .offset(skip).limit(limit).all()
+
+
+def search_tasks_by_title(db: Session, title_query: str, skip: int = 0, limit: int = 100):
+    """Пошук задач за назвою"""
+    return db.query(models.Task) \
+        .filter(models.Task.title.ilike(f"%{title_query}%")) \
+        .order_by(desc(models.Task.created_at)) \
+        .offset(skip).limit(limit).all()
+
+
+def get_tasks_stats(db: Session):
+    """Отримати статистику по задачам"""
+    total_tasks = db.query(models.Task).count()
+
+    status_stats = db.query(
+        models.Task.status,
+        func.count(models.Task.id).label('count')
+    ).group_by(models.Task.status).all()
+
+    priority_stats = db.query(
+        models.Task.priority,
+        func.count(models.Task.id).label('count')
+    ).group_by(models.Task.priority).all()
+
+    return {
+        "total_tasks": total_tasks,
+        "status_stats": {stat.status.value: stat.count for stat in status_stats},
+        "priority_stats": {stat.priority: stat.count for stat in priority_stats}
+    }
