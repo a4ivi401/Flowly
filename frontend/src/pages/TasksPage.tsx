@@ -1,38 +1,80 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { createTask, getTasks, updateTask, type Task } from '../api/client'
 import TaskForm from '../components/TaskForm'
-import TaskList, { type Task } from '../components/TaskList'
-
-const initialTasks: Task[] = [
-  { id: 1, title: 'Draft MVP scope for AI Time Manager', status: 'in-progress' },
-  { id: 2, title: "Outline today's schedule", status: 'todo' },
-  { id: 3, title: 'Sync with backend on API contract', status: 'todo' },
-]
+import TaskList from '../components/TaskList'
 
 const TasksPage = () => {
-  const [tasks, setTasks] = useState<Task[]>(initialTasks)
+  const [tasks, setTasks] = useState<Task[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let isMounted = true
+
+    const fetchTasks = async () => {
+      try {
+        const remoteTasks = await getTasks()
+        if (isMounted) {
+          setTasks(remoteTasks)
+        }
+      } catch (err) {
+        console.error('Не вдалося завантажити задачі', err)
+        if (isMounted) {
+          setError('Не вдалося завантажити задачі')
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false)
+        }
+      }
+    }
+
+    fetchTasks()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
 
   const stats = useMemo(() => {
-    const completed = tasks.filter((task) => task.status === 'done').length
+    const completed = tasks.filter((task) => task.status === 'completed').length
     return { total: tasks.length, completed }
   }, [tasks])
 
-  const handleAdd = (title: string) => {
-    const newTask: Task = {
-      id: Date.now(),
-      title,
-      status: 'todo',
+  const handleAdd = async (title: string) => {
+    try {
+      const created = await createTask({ title, status: 'pending' })
+      setTasks((current) => [created, ...current])
+    } catch (err) {
+      console.error('Не вдалося створити задачу', err)
+      const fallback: Task = {
+        id: Date.now(),
+        title,
+        status: 'pending',
+        description: null,
+        priority: null,
+        duration_minutes: null,
+        deadline: null,
+      }
+      setTasks((current) => [fallback, ...current])
     }
-    setTasks((current) => [newTask, ...current])
   }
 
-  const handleToggle = (id: number) => {
-    setTasks((current) =>
-      current.map((task) =>
-        task.id === id
-          ? { ...task, status: task.status === 'done' ? 'todo' : 'done' }
-          : task,
-      ),
-    )
+  const handleToggle = async (id: number) => {
+    const existing = tasks.find((task) => task.id === id)
+    if (!existing) return
+
+    const nextStatus = existing.status === 'completed' ? 'pending' : 'completed'
+
+    try {
+      const updated = await updateTask(id, { status: nextStatus })
+      setTasks((current) => current.map((task) => (task.id === id ? updated : task)))
+    } catch (err) {
+      console.error('Не вдалося оновити задачу', err)
+      setTasks((current) =>
+        current.map((task) => (task.id === id ? { ...task, status: nextStatus } : task)),
+      )
+    }
   }
 
   return (
@@ -54,7 +96,13 @@ const TasksPage = () => {
       </header>
 
       <TaskForm onAdd={handleAdd} />
-      <TaskList tasks={tasks} onToggle={handleToggle} />
+      {loading ? (
+        <p className="muted">Завантаження задач...</p>
+      ) : error ? (
+        <p className="muted">{error}</p>
+      ) : (
+        <TaskList tasks={tasks} onToggle={handleToggle} />
+      )}
     </section>
   )
 }
