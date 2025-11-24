@@ -52,3 +52,30 @@ def read_task(task_id: int, db: Session = Depends(get_db)):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+    @app.get("/test-db")
+    async def test_db_connection(db: Session = Depends(get_db)):
+        """Тестовий ендпоінт для перевірки роботи БД"""
+        try:
+            result = db.execute(text("SELECT NOW() as current_time"))
+            current_time = result.fetchone()
+
+            table_count = db.execute(text("""
+                                          SELECT COUNT(*)
+                                          FROM information_schema.tables
+                                          WHERE table_schema = DATABASE()
+                                          """))
+            tables = table_count.scalar()
+
+            return {
+                "status": "success",
+                "current_time": current_time[0],
+                "tables_in_database": tables,
+                "message": "База даних працює коректно"
+            }
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Помилка при роботі з БД: {str(e)}"
+            )
