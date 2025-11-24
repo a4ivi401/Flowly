@@ -15,6 +15,7 @@ dependencies = [
     "sqlalchemy>=2.0.23",
     "pymysql>=1.1.0",
     "pydantic>=2.5.0",
+    "cryptography>=41.0.0",
 ]
 
 [project.optional-dependencies]
