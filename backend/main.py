@@ -7,7 +7,7 @@ from app import crud, schemas
 from app.models import TaskStatus
 
 app = FastAPI(
-    title="AI Time Manager API",
+    title="Flowly API",
     description="Бекенд для управління часом з AI",
     version="1.0.0"
 )
@@ -16,7 +16,7 @@ app = FastAPI(
 @app.on_event("startup")
 async def startup_event():
     """Перевіряє підключення до БД при старті"""
-    print("🚀 Запуск AI Time Manager API...")
+    print("🚀 Запуск Flowly API...")
 
     if test_connection():
         print("✅ Підключення до БД успішне!")
@@ -53,7 +53,7 @@ async def health_check(db: Session = Depends(get_db)):
 @app.get("/")
 async def root():
     return {
-        "message": "Ласкаво просимо до AI Time Manager API",
+        "message": "Ласкаво просимо до Flowly API",
         "version": "1.0.0"
     }
 
@@ -62,8 +62,8 @@ async def root():
 async def test_db_connection(db: Session = Depends(get_db)):
     """Тестовий ендпоінт для перевірки роботи БД"""
     try:
-        result = db.execute(text("SELECT NOW() as current_time"))
-        current_time = result.fetchone()
+        # MySQL treats CURRENT_TIME as reserved, so keep the query simple
+        current_time = db.execute(text("SELECT NOW()")).scalar()
 
         table_count = db.execute(text("""
                                       SELECT COUNT(*)
@@ -74,7 +74,7 @@ async def test_db_connection(db: Session = Depends(get_db)):
 
         return {
             "status": "success",
-            "current_time": current_time[0],
+            "current_time": current_time,
             "tables_in_database": tables,
             "message": "База даних працює коректно"
         }
