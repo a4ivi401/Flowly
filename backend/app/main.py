@@ -9,7 +9,7 @@ from app.models import Base
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title="Task Manager API",
+    title="Flowly Task Manager API",
     description="Базовий бекенд для управління задачами",
     version="1.0.0"
 )
