@@ -3,14 +3,12 @@ from datetime import datetime
 from typing import Optional
 from enum import Enum
 
-# Enum для статусів (для Pydantic)
 class TaskStatus(str, Enum):
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
 
-# Базові схеми
 class TaskBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=255, description="Назва задачі")
     description: Optional[str] = Field(None, description="Опис задачі")
@@ -36,4 +34,4 @@ class Task(TaskBase):
     updated_at: datetime
 
     class Config:
-        from_attributes = True
+        from_attributes = True  # orm_mode в Pydantic v2
