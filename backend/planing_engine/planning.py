@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import Iterable, List, Sequence
 
@@ -54,6 +55,7 @@ def generate_plan(
     """
     Generate a plan using Gemini; fallback to deterministic ordering if Gemini fails.
     """
+    logger = logging.getLogger(__name__)
     planner = GeminiPlanner(api_key=api_key)
     try:
         plan = planner.generate_plan(
@@ -64,7 +66,8 @@ def generate_plan(
             short_break_minutes=short_break_minutes,
         )
         return _validate_plan(plan, tasks)
-    except GeminiPlannerError:
+    except GeminiPlannerError as exc:
+        logger.warning("Gemini planning failed, using fallback: %s", exc)
         ordered = _fallback_sort(tasks)
         now = datetime.utcnow()
         plan_items = [

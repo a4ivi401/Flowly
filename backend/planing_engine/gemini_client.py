@@ -48,7 +48,7 @@ class GeminiPlanner:
         if not self.api_key:
             raise GeminiPlannerError("GEMINI_API_KEY is not set")
         # Дозволяємо задавати модель через env; дефолт — актуальний -latest
-        self.model = model or os.getenv("GEMINI_MODEL") or "gemini-1.5-flash-latest"
+        self.model = model or os.getenv("GEMINI_MODEL") or "gemini-2.5-flash"
 
     def _build_prompt(
         self,
