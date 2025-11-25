@@ -1,4 +1,5 @@
 from typing import Iterable, List, Optional
+from enum import Enum
 
 from app.models import TaskStatus
 
@@ -19,8 +20,9 @@ CANONICAL_TO_DB = {
 def _as_str(value: Optional[str | TaskStatus]) -> Optional[str]:
     if value is None:
         return None
-    if isinstance(value, TaskStatus):
-        return value.value
+    # Підтримуємо будь-які enum (і з моделей, і з схем)
+    if isinstance(value, Enum):
+        return str(value.value)
     return str(value)
 
 
