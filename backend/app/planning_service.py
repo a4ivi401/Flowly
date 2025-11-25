@@ -5,6 +5,7 @@ from typing import List
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
+from datetime import datetime
 
 from planing_engine import generate_plan
 from planing_engine.models import Task as PlanningTask, Priority, Status
@@ -85,6 +86,9 @@ class PlanningService:
             )
         except GeminiPlannerError as exc:
             raise HTTPException(status_code=502, detail=f"Gemini planning failed: {exc}") from exc
+
+        # Ігноруємо plan_generated_at від Gemini та фіксуємо поточний час сервера
+        plan.plan_generated_at = datetime.utcnow()
 
         crud.replace_planned_tasks(self.db, plan)
 
