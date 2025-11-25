@@ -75,7 +75,9 @@ def create_tables():
     Створює всі таблиці в БД
     """
     try:
-        Base.metadata.create_all(bind=engine)
+        # Виконуємо в явному транзакційному блоці, щоб DDL точно закомітився
+        with engine.begin() as conn:
+            Base.metadata.create_all(bind=conn)
         print("✅ Таблиці успішно створені!")
     except Exception as e:
         print(f"❌ Помилка створення таблиць: {e}")
