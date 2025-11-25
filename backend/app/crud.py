@@ -43,7 +43,6 @@ def create_task(db: Session, task: schemas.TaskCreate):
         priority=task.priority,
         duration_minutes=task.duration_minutes,
         deadline=task.deadline,
-        status=status_utils.to_db_status(task.status)
     )
     db.add(db_task)
     db.commit()

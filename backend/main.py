@@ -1,3 +1,7 @@
+from datetime import datetime
+from pathlib import Path
+import logging
+
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -6,6 +10,41 @@ from sqlalchemy import text
 from app.database import get_db, test_connection, create_tables
 from app import crud, schemas
 from app.models import TaskStatus
+
+
+LOG_DIR = Path(__file__).resolve().parent / "logs"
+LOG_DIR.mkdir(exist_ok=True)
+LOG_START_TIME = datetime.now()
+LOG_FILE_RUNNING = LOG_DIR / f"flowly_{LOG_START_TIME:%Y%m%d_%H%M%S}_running.log"
+_file_handler: logging.FileHandler | None = None
+
+
+def setup_logging() -> None:
+    """Configure console + file logging for the app lifecycle."""
+    global _file_handler
+
+    formatter = logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    )
+
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(formatter)
+
+    file_handler = logging.FileHandler(LOG_FILE_RUNNING, encoding="utf-8")
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(formatter)
+    _file_handler = file_handler
+
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    root_logger.handlers.clear()
+    root_logger.addHandler(console_handler)
+    root_logger.addHandler(file_handler)
+
+
+setup_logging()
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Flowly API",
@@ -26,17 +65,17 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event():
     """Перевіряє підключення до БД при старті"""
-    print("🚀 Запуск Flowly API...")
+    logger.info("🚀 Запуск Flowly API...")
 
     if test_connection():
-        print("✅ Підключення до БД успішне!")
+        logger.info("✅ Підключення до БД успішне!")
         try:
             create_tables()
-            print("✅ Таблиці БД готові до роботи")
+            logger.info("✅ Таблиці БД готові до роботи")
         except Exception as e:
-            print(f"⚠️  Попередження при створенні таблиць: {e}")
+            logger.warning("⚠️  Попередження при створенні таблиць: %s", e)
     else:
-        print("❌ Не вдалося підключитися до БД!")
+        logger.error("❌ Не вдалося підключитися до БД!")
 
 
 @app.get("/health")
@@ -54,6 +93,7 @@ async def health_check(db: Session = Depends(get_db)):
             "message": "Сервер та БД працюють нормально"
         }
     except Exception as e:
+        logger.exception("Помилка БД при health_check: %s", e)
         raise HTTPException(
             status_code=500,
             detail=f"Помилка БД: {str(e)}"
@@ -89,6 +129,7 @@ async def test_db_connection(db: Session = Depends(get_db)):
             "message": "База даних працює коректно"
         }
     except Exception as e:
+        logger.exception("Помилка при роботі з БД: %s", e)
         raise HTTPException(
             status_code=500,
             detail=f"Помилка при роботі з БД: {str(e)}"
@@ -142,6 +183,28 @@ def delete_task(task_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Задачу не знайдено")
     return {"ok": True}
 
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Логує момент завершення та зберігає лог з датою/часом завершення."""
+    global _file_handler
+    end_time = datetime.now()
+    target_log = LOG_DIR / f"flowly_{end_time:%Y%m%d_%H%M%S}.log"
+    logger.info("🛑 Зупинка Flowly API о %s", end_time.isoformat())
+
+    if _file_handler:
+        root_logger = logging.getLogger()
+        _file_handler.flush()
+        _file_handler.close()
+        root_logger.removeHandler(_file_handler)
+        _file_handler = None
+        try:
+            LOG_FILE_RUNNING.rename(target_log)
+            logger.info("Логи збережено у файлі: %s", target_log)
+        except Exception as exc:
+            logger.error("Не вдалося перейменувати лог-файл: %s", exc)
+
+
 @app.get("/tasks/priority/{priority}", response_model=list[schemas.Task])
 def read_tasks_by_priority(priority: int, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     """Отримати задачі за пріоритетом"""
@@ -158,4 +221,4 @@ def read_overdue_tasks(skip: int = 0, limit: int = 100, db: Session = Depends(ge
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_config=None)
