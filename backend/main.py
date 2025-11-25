@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
@@ -10,6 +11,15 @@ app = FastAPI(
     title="Flowly API",
     description="Бекенд для управління часом з AI",
     version="1.0.0"
+)
+
+# Додаємо CORS після створення застосунку
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Для продакшену вкажіть конкретні домени
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
