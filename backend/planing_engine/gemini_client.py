@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from dataclasses import dataclass
 from datetime import datetime
@@ -10,6 +11,7 @@ from dotenv import load_dotenv
 
 from planing_engine.models import Task
 
+# Load local .env if present
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
 
@@ -39,7 +41,7 @@ class GeminiPlannerError(Exception):
 
 class GeminiPlanner:
     """
-    Thin wrapper around Gemini API for daily planning.
+    Wrapper around Gemini API for daily planning.
     Expects JSON-only responses for predictable parsing.
     """
 
@@ -47,8 +49,8 @@ class GeminiPlanner:
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         if not self.api_key:
             raise GeminiPlannerError("GEMINI_API_KEY is not set")
-        # API приймає шлях /models/{model}:..., без подвійного префікса
-        self.model = model or os.getenv("GEMINI_MODEL") or "gemini-2.5-flash"
+        raw_model = model or os.getenv("GEMINI_MODEL") or "gemini-2.5-flash"
+        self.model = raw_model if raw_model.startswith("models/") else f"models/{raw_model}"
 
     def _build_prompt(
         self,
@@ -58,7 +60,7 @@ class GeminiPlanner:
         long_break_minutes: int,
         short_break_minutes: int,
     ) -> str:
-        """Compose a deterministic prompt for Gemini."""
+        """Compose deterministic prompt for Gemini."""
         task_dump = []
         for task in tasks:
             task_dump.append(
@@ -78,32 +80,23 @@ class GeminiPlanner:
             )
 
         return (
-            "You are an AI scheduling assistant. Build an optimized plan for the next workday.\n"
-            f"Timezone: {timezone}.\n"
-            f"Workday hours total: {workday_hours}.\n"
-            f"Long break (lunch) minutes: {long_break_minutes}.\n"
-            f"Short break minutes: {short_break_minutes}.\n"
-            "Rules:\n"
-            "- Prefer pinned tasks first.\n"
-            "- Respect deadlines; overdue and today deadlines first.\n"
-            "- Sort by priority high > medium > low.\n"
-            "- Fit into the available workday and include breaks appropriately; skip blocked tasks.\n"
-            "- Provide clear ordering via `priority_rank` starting from 1.\n"
-            "- Use ISO 8601 timestamps with timezone if you set start/end times.\n\n"
-            "Input JSON with tasks:\n"
+            "You are an expert time-management assistant. Build an optimized daily plan using good timeboxing.\n"
+            f"Timezone: {timezone}. Workday hours: {workday_hours}. Long break: {long_break_minutes} minutes. Short break: {short_break_minutes} minutes.\n"
+            "Rules: pinned tasks first; overdue/today deadlines first; priority high>medium>low; skip blocked; ensure total duration fits the day including breaks; add short notes only if useful.\n"
+            "Input tasks JSON:\n"
             f"{json.dumps(task_dump, ensure_ascii=False, indent=2)}\n\n"
-            "Return ONLY compact JSON in this schema (no extra text):\n"
+            "Return ONLY JSON in this exact schema (no extra text):\n"
             "{\n"
             '  \"plan_generated_at\": \"<ISO datetime>\",\n'
-            '  \"timezone\": \"<tz like UTC or Europe/Kyiv>\",\n'
+            '  \"timezone\": \"<string>\",\n'
             "  \"tasks\": [\n"
             "    {\n"
             "      \"task_id\": <int>,\n"
-            "      \"priority_rank\": <int starting from 1>,\n"
+            "      \"priority_rank\": <int starting at 1>,\n"
             "      \"duration_minutes\": <int>,\n"
             "      \"planned_start\": \"<ISO datetime or null>\",\n"
             "      \"planned_end\": \"<ISO datetime or null>\",\n"
-            "      \"note\": \"<optional comment>\"\n"
+            "      \"note\": \"<optional string>\"\n"
             "    }\n"
             "  ]\n"
             "}"
@@ -115,8 +108,8 @@ class GeminiPlanner:
                 return None
             try:
                 return datetime.fromisoformat(value.replace("Z", "+00:00"))
-            except Exception as exc:  # pragma: no cover - defensive
-                raise GeminiPlannerError(f"Невалідний datetime формат: {value}") from exc
+            except Exception as exc:
+                raise GeminiPlannerError(f"Invalid datetime format: {value}") from exc
 
         try:
             data = json.loads(raw_text)
@@ -138,6 +131,8 @@ class GeminiPlanner:
                         note=item.get("note"),
                     )
                 )
+            if not plan_items:
+                raise GeminiPlannerError("Gemini plan is empty")
             return GeminiPlan(plan_generated_at=generated_at, timezone=timezone, tasks=plan_items)
         except Exception as exc:
             raise GeminiPlannerError(f"Failed to parse Gemini plan: {exc}") from exc
@@ -150,9 +145,8 @@ class GeminiPlanner:
         long_break_minutes: int = 60,
         short_break_minutes: int = 15,
     ) -> GeminiPlan:
-        """
-        Call Gemini to generate a plan.
-        """
+        """Call Gemini to generate a plan."""
+        logger = logging.getLogger(__name__)
         prompt = self._build_prompt(
             tasks,
             timezone=timezone,
@@ -178,6 +172,7 @@ class GeminiPlanner:
                 f"Gemini responded with {response.status_code}: {response.text}"
             )
 
+        logger.info("Gemini request ok: model=%s status=%s", self.model, response.status_code)
         data = response.json()
         text = (
             data.get("candidates", [{}])[0]
