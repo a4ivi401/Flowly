@@ -104,6 +104,20 @@ class GeminiPlanner:
         )
 
     def _parse_plan(self, raw_text: str) -> GeminiPlan:
+        logger = logging.getLogger(__name__)
+
+        def _extract_json(text: str) -> dict:
+            try:
+                return json.loads(text)
+            except json.JSONDecodeError:
+                # Спроба вирізати перший JSON-блок
+                start = text.find("{")
+                end = text.rfind("}")
+                if start != -1 and end != -1 and end > start:
+                    snippet = text[start : end + 1]
+                    return json.loads(snippet)
+                raise
+
         def _parse_dt(value: Optional[str]) -> Optional[datetime]:
             if value is None:
                 return None
@@ -113,7 +127,8 @@ class GeminiPlanner:
                 raise GeminiPlannerError(f"Invalid datetime format: {value}") from exc
 
         try:
-            data = json.loads(raw_text)
+            logger.debug("Gemini raw text: %s", raw_text)
+            data = _extract_json(raw_text)
         except json.JSONDecodeError as exc:
             raise GeminiPlannerError(f"Gemini returned non-JSON response: {exc}") from exc
 
