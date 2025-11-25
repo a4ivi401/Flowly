@@ -1,5 +1,8 @@
+import logging
+
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, and_, case
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.sql import func
 from datetime import datetime, date, timedelta
 
@@ -23,27 +26,41 @@ def get_task(db: Session, task_id: int):
 
 def get_tasks(db: Session, skip: int = 0, limit: int = 100, status: str = None, priority: int = None):
     """Отримати список задач з фільтрацією по статусу та пріоритету"""
-    query = db.query(models.Task).outerjoin(models.PlannedTask, models.PlannedTask.task_id == models.Task.id)
+    try:
+        query = db.query(models.Task).outerjoin(models.PlannedTask, models.PlannedTask.task_id == models.Task.id)
 
-    if status:
-        db_status = status_utils.to_db_status(status)
-        query = query.filter(models.Task.status == db_status)
-    if priority:
-        query = query.filter(models.Task.priority == priority)
+        if status:
+            db_status = status_utils.to_db_status(status)
+            query = query.filter(models.Task.status == db_status)
+        if priority:
+            query = query.filter(models.Task.priority == priority)
 
-    order_expr = case(
-        (models.PlannedTask.priority_rank == None, 1),
-        else_=0
-    )
+        order_expr = case(
+            (models.PlannedTask.priority_rank == None, 1),
+            else_=0
+        )
 
-    tasks = (
-        query
-        .order_by(order_expr, models.PlannedTask.priority_rank, desc(models.Task.created_at))
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
-    return _normalize_tasks(tasks)
+        tasks = (
+            query
+            .order_by(order_expr, models.PlannedTask.priority_rank, desc(models.Task.created_at))
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+        return _normalize_tasks(tasks)
+    except ProgrammingError as exc:
+        logging.warning("planned_tasks table missing, fallback without planning ordering: %s", exc)
+        db.rollback()
+
+        query = db.query(models.Task)
+        if status:
+            db_status = status_utils.to_db_status(status)
+            query = query.filter(models.Task.status == db_status)
+        if priority:
+            query = query.filter(models.Task.priority == priority)
+
+        tasks = query.order_by(desc(models.Task.created_at)).offset(skip).limit(limit).all()
+        return _normalize_tasks(tasks)
 
 
 def create_task(db: Session, task: schemas.TaskCreate):
