@@ -1,8 +1,10 @@
 import os
+from pathlib import Path
 from typing import List
 
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
+from dotenv import load_dotenv
 
 from planing_engine import generate_plan
 from planing_engine.models import Task as PlanningTask, Priority, Status
@@ -16,6 +18,14 @@ class PlanningService:
 
     def __init__(self, db: Session):
         self.db = db
+        base_dir = Path(__file__).resolve().parents[1]  # backend/
+        for env_path in [
+            base_dir / ".env",
+            base_dir / "planing_engine" / ".env",
+            base_dir.parent / "planing_engine" / ".env",
+        ]:
+            if env_path.exists():
+                load_dotenv(env_path, override=False)
         self.api_key = os.getenv("GEMINI_API_KEY")
         if not self.api_key:
             raise HTTPException(status_code=500, detail="GEMINI_API_KEY is not configured")
