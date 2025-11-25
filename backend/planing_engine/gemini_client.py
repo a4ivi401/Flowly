@@ -47,9 +47,8 @@ class GeminiPlanner:
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         if not self.api_key:
             raise GeminiPlannerError("GEMINI_API_KEY is not set")
-        raw_model = model or os.getenv("GEMINI_MODEL") or "models/gemini-2.5-flash"
-        # API вимагає префікс "models/..."
-        self.model = raw_model if raw_model.startswith("models/") else f"models/{raw_model}"
+        # API приймає шлях /models/{model}:..., без подвійного префікса
+        self.model = model or os.getenv("GEMINI_MODEL") or "gemini-2.5-flash"
 
     def _build_prompt(
         self,
