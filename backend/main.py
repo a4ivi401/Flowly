@@ -116,6 +116,13 @@ def run_planning_today(body: schemas.PlanningRequest, db: Session = Depends(get_
     return service.run(body)
 
 
+@app.get("/plan/today/optimized", response_model=schemas.PlanningResponse)
+def get_optimized_plan(timezone: str = "UTC", db: Session = Depends(get_db)):
+    """Отримати вже збережений впорядкований план із таблиці planned_tasks."""
+    service = PlanningService(db)
+    return service.get_saved_plan(timezone=timezone)
+
+
 @app.get("/test-db")
 async def test_db_connection(db: Session = Depends(get_db)):
     """Тестовий ендпоінт для перевірки роботи БД"""

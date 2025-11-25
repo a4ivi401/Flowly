@@ -50,6 +50,9 @@
   ```
   Помилки: `500` (нема `GEMINI_API_KEY`), `502` (помилка виклику Gemini).
 
+- `GET /plan/today/optimized`  
+  Повертає вже збережений впорядкований план із таблиці `planned_tasks`. Опційний query `timezone` (за замовчуванням `UTC`), `generated_at` заповнюється поточним серверним часом.
+
 ## Tasks CRUD
 - `POST /tasks/` – створити задачу. Тіло `TaskCreate`:
   ```json

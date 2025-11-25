@@ -114,3 +114,28 @@ class PlanningService:
             timezone=plan.timezone,
             tasks=response_items,
         )
+
+    def get_saved_plan(self, timezone: str = "UTC") -> schemas.PlanningResponse:
+        """Повертає поточний збережений план із planned_tasks."""
+        stored_plan = crud.get_planned_tasks(self.db)
+        response_items: List[schemas.PlannedTaskItem] = []
+        for item in stored_plan:
+            plan_row = item["plan"]
+            task = item["task"]
+            response_items.append(
+                schemas.PlannedTaskItem(
+                    task_id=plan_row.task_id,
+                    priority_rank=plan_row.priority_rank,
+                    planned_start=plan_row.planned_start,
+                    planned_end=plan_row.planned_end,
+                    duration_minutes=plan_row.duration_minutes,
+                    note=plan_row.note,
+                    task=schemas.Task.model_validate(task),
+                )
+            )
+
+        return schemas.PlanningResponse(
+            generated_at=datetime.utcnow(),
+            timezone=timezone,
+            tasks=response_items,
+        )
