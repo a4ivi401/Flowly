@@ -43,11 +43,12 @@ class GeminiPlanner:
     Expects JSON-only responses for predictable parsing.
     """
 
-    def __init__(self, api_key: Optional[str] = None, model: str = "gemini-1.5-flash"):
+    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
         self.api_key = api_key or os.getenv("GEMINI_API_KEY")
         if not self.api_key:
             raise GeminiPlannerError("GEMINI_API_KEY is not set")
-        self.model = model
+        # Дозволяємо задавати модель через env; дефолт — актуальний -latest
+        self.model = model or os.getenv("GEMINI_MODEL") or "gemini-1.5-flash-latest"
 
     def _build_prompt(
         self,
