@@ -38,3 +38,29 @@ class Task(TaskBase):
 
     class Config:
         from_attributes = True  # orm_mode в Pydantic v2
+
+
+class PlannedTaskItem(BaseModel):
+    task_id: int
+    priority_rank: int
+    planned_start: Optional[datetime] = None
+    planned_end: Optional[datetime] = None
+    duration_minutes: Optional[int] = None
+    note: Optional[str] = None
+    task: Task
+
+    class Config:
+        from_attributes = True
+
+
+class PlanningResponse(BaseModel):
+    generated_at: Optional[datetime] = None
+    timezone: str
+    tasks: list[PlannedTaskItem]
+
+
+class PlanningRequest(BaseModel):
+    timezone: str = "UTC"
+    workday_hours: int = Field(8, ge=1, le=16)
+    long_break_minutes: int = Field(60, ge=0, le=180)
+    short_break_minutes: int = Field(15, ge=0, le=60)

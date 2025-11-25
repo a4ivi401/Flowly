@@ -1,16 +1,15 @@
 """Planning Engine module for Flowly - AI Time Manager
 
-Этот модуль реализует rule-based алгоритм планирования дня.
+AI-first planning via Gemini with validation and DB-ready output.
 """
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"
 
-from .engine import plan_day, get_plan_summary
+from .planning import generate_plan
 from .models import Task, Priority, Status
 
 __all__ = [
-    "plan_day",
-    "get_plan_summary", 
+    "generate_plan",
     "Task",
     "Priority",
     "Status",

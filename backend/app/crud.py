@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, and_
+from sqlalchemy import desc, and_, case
 from sqlalchemy.sql import func
 from datetime import datetime, date, timedelta
 
@@ -23,7 +23,7 @@ def get_task(db: Session, task_id: int):
 
 def get_tasks(db: Session, skip: int = 0, limit: int = 100, status: str = None, priority: int = None):
     """Отримати список задач з фільтрацією по статусу та пріоритету"""
-    query = db.query(models.Task)
+    query = db.query(models.Task).outerjoin(models.PlannedTask, models.PlannedTask.task_id == models.Task.id)
 
     if status:
         db_status = status_utils.to_db_status(status)
@@ -31,7 +31,18 @@ def get_tasks(db: Session, skip: int = 0, limit: int = 100, status: str = None, 
     if priority:
         query = query.filter(models.Task.priority == priority)
 
-    tasks = query.order_by(desc(models.Task.created_at)).offset(skip).limit(limit).all()
+    order_expr = case(
+        (models.PlannedTask.priority_rank == None, 1),
+        else_=0
+    )
+
+    tasks = (
+        query
+        .order_by(order_expr, models.PlannedTask.priority_rank, desc(models.Task.created_at))
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
     return _normalize_tasks(tasks)
 
 
@@ -72,6 +83,47 @@ def delete_task(db: Session, task_id: int):
         db.delete(db_task)
         db.commit()
     return db_task
+
+
+def get_plannable_tasks(db: Session):
+    """Отримати задачі, які можна планувати (без completed/cancelled)."""
+    completed = status_utils.to_db_status(models.TaskStatus.COMPLETED)
+    cancelled = status_utils.to_db_status(models.TaskStatus.CANCELLED)
+    tasks = db.query(models.Task).filter(~models.Task.status.in_([completed, cancelled])).all()
+    return _normalize_tasks(tasks)
+
+
+def replace_planned_tasks(db: Session, plan):
+    """Замінити існуючий план новим (повністю)."""
+    db.query(models.PlannedTask).delete()
+    for item in plan.tasks:
+        db.add(
+            models.PlannedTask(
+                task_id=item.task_id,
+                priority_rank=item.priority_rank,
+                duration_minutes=item.duration_minutes,
+                planned_start=item.planned_start,
+                planned_end=item.planned_end,
+                note=item.note,
+            )
+        )
+    db.commit()
+
+
+def get_planned_tasks(db: Session):
+    """Отримати сплановані задачі з деталями."""
+    rows = (
+        db.query(models.PlannedTask, models.Task)
+        .join(models.Task, models.Task.id == models.PlannedTask.task_id)
+        .order_by(models.PlannedTask.priority_rank)
+        .all()
+    )
+
+    result = []
+    for plan_row, task in rows:
+        normalized_task = _normalize_task(task)
+        result.append({"plan": plan_row, "task": normalized_task})
+    return result
 
 
 def get_tasks_by_priority(db: Session, priority: int, skip: int = 0, limit: int = 100):

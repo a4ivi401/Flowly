@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, SmallInteger
+from sqlalchemy import Column, Integer, String, Text, DateTime, SmallInteger, ForeignKey
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database import Base
 import enum
@@ -30,3 +31,23 @@ class Task(Base):
 
     def __repr__(self):
         return f"<Task(id={self.id}, title='{self.title}', status='{self.status}')>"
+
+
+class PlannedTask(Base):
+    __tablename__ = "planned_tasks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    task_id = Column(Integer, ForeignKey("tasks.id"), unique=True, nullable=False)
+    priority_rank = Column(Integer, nullable=False, index=True)
+    duration_minutes = Column(Integer, nullable=True)
+    planned_start = Column(DateTime(timezone=True), nullable=True)
+    planned_end = Column(DateTime(timezone=True), nullable=True)
+    note = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now()
+    )
+
+    task = relationship("Task")

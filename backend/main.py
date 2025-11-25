@@ -10,6 +10,7 @@ from sqlalchemy import text
 from app.database import get_db, test_connection, create_tables
 from app import crud, schemas
 from app.models import TaskStatus
+from app.planning_service import PlanningService
 
 
 LOG_DIR = Path(__file__).resolve().parent / "logs"
@@ -106,6 +107,13 @@ async def root():
         "message": "Ласкаво просимо до Flowly API",
         "version": "1.0.0"
     }
+
+
+@app.post("/plan/today", response_model=schemas.PlanningResponse)
+def run_planning_today(body: schemas.PlanningRequest, db: Session = Depends(get_db)):
+    """Запустити планування на поточний день, зберегти й повернути впорядкований список задач."""
+    service = PlanningService(db)
+    return service.run(body)
 
 
 @app.get("/test-db")
