@@ -13,6 +13,7 @@ class TaskStatus(str, enum.Enum):
 
 class Task(Base):
     __tablename__ = "tasks"
+    __table_args__ = {"mysql_engine": "InnoDB", "mysql_charset": "utf8mb4"}
 
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(255), nullable=False, index=True)
@@ -35,6 +36,7 @@ class Task(Base):
 
 class PlannedTask(Base):
     __tablename__ = "planned_tasks"
+    __table_args__ = {"mysql_engine": "InnoDB", "mysql_charset": "utf8mb4"}
 
     id = Column(Integer, primary_key=True, index=True)
     task_id = Column(Integer, ForeignKey("tasks.id"), unique=True, nullable=False)
