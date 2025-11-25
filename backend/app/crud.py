@@ -97,6 +97,8 @@ def delete_task(db: Session, task_id: int):
     """Видалити задачу"""
     db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
     if db_task:
+        # Спочатку прибираємо пов'язані записи плану, щоб не ловити FK 1451
+        db.query(models.PlannedTask).filter(models.PlannedTask.task_id == task_id).delete()
         db.delete(db_task)
         db.commit()
     return db_task
