@@ -3,12 +3,22 @@ from sqlalchemy import desc, and_
 from sqlalchemy.sql import func
 from datetime import datetime, date, timedelta
 
-from app import models, schemas
+from app import models, schemas, status_utils
+
+
+def _normalize_task(task: models.Task):
+    """Перетворює статус задачі до канонічного значення для API."""
+    return status_utils.normalize_task_status(task)
+
+
+def _normalize_tasks(tasks: list[models.Task]):
+    return status_utils.normalize_tasks(tasks)
 
 
 def get_task(db: Session, task_id: int):
     """Отримати задачу за ID"""
-    return db.query(models.Task).filter(models.Task.id == task_id).first()
+    task = db.query(models.Task).filter(models.Task.id == task_id).first()
+    return _normalize_task(task)
 
 
 def get_tasks(db: Session, skip: int = 0, limit: int = 100, status: str = None, priority: int = None):
@@ -16,11 +26,13 @@ def get_tasks(db: Session, skip: int = 0, limit: int = 100, status: str = None, 
     query = db.query(models.Task)
 
     if status:
-        query = query.filter(models.Task.status == status)
+        db_status = status_utils.to_db_status(status)
+        query = query.filter(models.Task.status == db_status)
     if priority:
         query = query.filter(models.Task.priority == priority)
 
-    return query.order_by(desc(models.Task.created_at)).offset(skip).limit(limit).all()
+    tasks = query.order_by(desc(models.Task.created_at)).offset(skip).limit(limit).all()
+    return _normalize_tasks(tasks)
 
 
 def create_task(db: Session, task: schemas.TaskCreate):
@@ -31,12 +43,12 @@ def create_task(db: Session, task: schemas.TaskCreate):
         priority=task.priority,
         duration_minutes=task.duration_minutes,
         deadline=task.deadline,
-        status=task.status
+        status=status_utils.to_db_status(task.status)
     )
     db.add(db_task)
     db.commit()
     db.refresh(db_task)
-    return db_task
+    return _normalize_task(db_task)
 
 
 def update_task(db: Session, task_id: int, task_update: schemas.TaskUpdate):
@@ -45,10 +57,13 @@ def update_task(db: Session, task_id: int, task_update: schemas.TaskUpdate):
     if db_task:
         update_data = task_update.model_dump(exclude_unset=True)
         for field, value in update_data.items():
-            setattr(db_task, field, value)
+            if field == "status":
+                setattr(db_task, field, status_utils.to_db_status(value))
+            else:
+                setattr(db_task, field, value)
         db.commit()
         db.refresh(db_task)
-    return db_task
+    return _normalize_task(db_task)
 
 
 def delete_task(db: Session, task_id: int):
@@ -62,22 +77,25 @@ def delete_task(db: Session, task_id: int):
 
 def get_tasks_by_priority(db: Session, priority: int, skip: int = 0, limit: int = 100):
     """Отримати задачі за пріоритетом"""
-    return db.query(models.Task) \
+    tasks = db.query(models.Task) \
         .filter(models.Task.priority == priority) \
         .order_by(desc(models.Task.created_at)) \
         .offset(skip).limit(limit).all()
+    return _normalize_tasks(tasks)
 
 
 def get_overdue_tasks(db: Session, skip: int = 0, limit: int = 100):
     """Отримати прострочені задачі"""
-    return db.query(models.Task) \
+    completed_status = status_utils.to_db_status(models.TaskStatus.COMPLETED)
+    tasks = db.query(models.Task) \
         .filter(and_(
         models.Task.deadline.isnot(None),
         models.Task.deadline < func.now(),
-        models.Task.status != models.TaskStatus.COMPLETED
+        models.Task.status != completed_status
     )) \
         .order_by(models.Task.deadline) \
         .offset(skip).limit(limit).all()
+    return _normalize_tasks(tasks)
 
 
 def get_tasks_for_today(db: Session, target_date: str = None, days_ahead: int = 0):
@@ -97,10 +115,15 @@ def get_tasks_for_today(db: Session, target_date: str = None, days_ahead: int = 
     start_date = target_date
     end_date = target_date + timedelta(days=days_ahead)
 
-    return db.query(models.Task) \
+    allowed_statuses = [
+        status_utils.to_db_status(models.TaskStatus.PENDING),
+        status_utils.to_db_status(models.TaskStatus.IN_PROGRESS)
+    ]
+
+    tasks = db.query(models.Task) \
         .filter(
         and_(
-            models.Task.status.in_([models.TaskStatus.PENDING, models.TaskStatus.IN_PROGRESS]),
+            models.Task.status.in_(allowed_statuses),
             models.Task.deadline.isnot(None),
             models.Task.deadline >= start_date,
             models.Task.deadline <= end_date
@@ -108,15 +131,18 @@ def get_tasks_for_today(db: Session, target_date: str = None, days_ahead: int = 
     ) \
         .order_by(models.Task.priority, models.Task.deadline) \
         .all()
+    return _normalize_tasks(tasks)
 
 
 # Додаткові CRUD функції
 def get_tasks_by_status(db: Session, status: str, skip: int = 0, limit: int = 100):
     """Отримати задачі за статусом"""
-    return db.query(models.Task) \
-        .filter(models.Task.status == status) \
+    db_status = status_utils.to_db_status(status)
+    tasks = db.query(models.Task) \
+        .filter(models.Task.status == db_status) \
         .order_by(desc(models.Task.created_at)) \
         .offset(skip).limit(limit).all()
+    return _normalize_tasks(tasks)
 
 
 def get_tasks_stats(db: Session):
@@ -133,8 +159,12 @@ def get_tasks_stats(db: Session):
         func.count(models.Task.id).label('count')
     ).group_by(models.Task.priority).all()
 
+    normalized_status_stats = {
+        status_utils.to_api_status(stat.status): stat.count for stat in status_stats
+    }
+
     return {
         "total_tasks": total_tasks,
-        "status_stats": {stat.status.value: stat.count for stat in status_stats},
+        "status_stats": normalized_status_stats,
         "priority_stats": {stat.priority: stat.count for stat in priority_stats}
     }

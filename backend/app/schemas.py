@@ -8,6 +8,9 @@ class TaskStatus(str, Enum):
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
+    # Легасі значення, що можуть лишатися в БД/клієнтах
+    TODO = "todo"
+    DONE = "done"
 
 class TaskBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=255, description="Назва задачі")
